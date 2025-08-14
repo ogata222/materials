@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>２次不等式シミュレーター</title>
+    <style>
+        /* --- 基本的なスタイル設定 --- */
+        body {
+            font-family: sans-serif;
+            background-color: white;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 1rem;
+        }
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background-color: white;
+            padding: 2rem;
+            border-radius: 16px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #483d8b; /* タイトル色（DarkSlateBlue） */
+            margin: 0 0 0.5rem 0;
+        }
+        .formula {
+            font-size: 1.2rem;
+            margin-bottom: 1.5rem;
+        }
+        .canvas-container {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+        canvas {
+            width: 100%;
+            display: block;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+        }
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            cursor: pointer;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        #p-value {
+            font-weight: bold;
+            color: #483d8b;
+            min-width: 40px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>２次不等式シミュレーター</h1>
+        <p class="formula">
+            y=(x-2)²+p
+        </p>
+
+        <div class="canvas-container">
+            <canvas id="graphCanvas"></canvas>
+        </div>
+
+        <div class="controls">
+            <div>
+                <label for="p-slider">
+                    p = <span id="p-value">0.0</span>
+                </label>
+                <div class="slider-container">
+                    <span>-5</span>
+                    <input id="p-slider" type="range" min="-5" max="5" value="0" step="0.1">
+                    <span>+5</span>
+                </div>
+            </div>
+            <div class="checkbox-container">
+                <input type="checkbox" id="include-equals-checkbox">
+                <label for="include-equals-checkbox">不等号が≧、≦</label>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM要素の取得 ---
+        const canvas = document.getElementById('graphCanvas'); // グラフ描画用キャンバス
+        const ctx = canvas.getContext('2d');                   // 2D描画コンテキスト
+        const pSlider = document.getElementById('p-slider');    // p値スライダー
+        const pValueSpan = document.getElementById('p-value');  // p値表示用スパン
+        const includeEqualsCheckbox = document.getElementById('include-equals-checkbox'); // 等号含むチェックボックス
+
+        // --- キャンバスのサイズと解像度の設定 ---
+        const size = 500; // 内部解像度（ピクセル）
+        canvas.width = size;
+        canvas.height = size;
+
+        // --- グラフの描画範囲・スケール設定 ---
+        const scale = 40; // 1単位あたりのピクセル数
+        const xMin = -2;  // x軸の最小値
+        const xMax = 6;   // x軸の最大値
+        const yMin = -6;  // y軸の最小値
+        const yMax = 6;   // y軸の最大値
+
+        // --- 座標変換のための中心点計算 ---
+        // centerX, centerYはキャンバス上の原点（x=0, y=0）の位置
+        const centerX = canvas.width * (-xMin / (xMax - xMin));
+        const centerY = canvas.height * (yMax / (yMax - yMin));
+
+        /**
+         * グラフ全体を描画するメイン関数
+         * スライダーやチェックボックスの値に応じて再描画する
+         */
+        function draw() {
+            const p = parseFloat(pSlider.value); // 現在のp値
+            const includesEquals = includeEqualsCheckbox.checked; // 等号を含むか
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // キャンバスをクリア
+            drawAxesAndGrid();                               // 座標軸・グリッド描画
+            drawFunctionGraph(p, includesEquals);            // 二次関数グラフ描画
+        }
+
+        /**
+         * 座標軸とグリッド線を描画する
+         * x軸・y軸、グリッド、軸ラベルを描画
+         */
+        function drawAxesAndGrid() {
+            ctx.beginPath();
+            ctx.strokeStyle = '#e0e0e0'; // グリッド線色（薄いグレー）
+            ctx.lineWidth = 1;
+
+            // --- 縦グリッド線 ---
+            for (let x = Math.ceil(xMin); x <= Math.floor(xMax) + 3; x++) {
+                const canvasX = centerX + x * scale;
+                ctx.moveTo(canvasX, 0);
+                ctx.lineTo(canvasX, canvas.height);
+            }
+            // --- 横グリッド線 ---
+            for (let y = Math.ceil(yMin); y <= Math.floor(yMax); y++) {
+                const canvasY = centerY - y * scale;
+                ctx.moveTo(0, canvasY);
+                ctx.lineTo(canvas.width, canvasY);
+            }
+            ctx.stroke();
+
+            // --- 座標軸（x軸・y軸） ---
+            ctx.beginPath();
+            ctx.strokeStyle = '#555'; // 座標軸色（濃いグレー）
+            ctx.lineWidth = 2;
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(canvas.width, centerY); // x軸
+            ctx.moveTo(centerX, 0);
+            ctx.lineTo(centerX, canvas.height); // y軸
+            ctx.stroke();
+
+            // --- 軸ラベル描画 ---
+            ctx.fillStyle = '#333';
+            ctx.font = '16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('x', canvas.width - 15, centerY - 15);         // x軸ラベル
+            ctx.fillText('y', centerX + 15, 15);                        // y軸ラベル
+            ctx.fillText('O', centerX - 10, centerY + 15);              // 原点ラベル
+        }
+
+        /**
+         * 二次関数のグラフを描画する
+         * @param {number} p - 二次関数の定数項
+         * @param {boolean} includesEquals - 不等号に等号を含むか
+         */
+        function drawFunctionGraph(p, includesEquals) {
+            const positiveColor = '#ff4500'; // y>0部分の色（OrangeRed）
+            const negativeColor = '#1e90ff'; // y<0部分の色（DodgerBlue）
+
+            ctx.lineWidth = 3;
+
+            if (p < 0) {
+                // --- x軸と2点で交わる場合 ---
+                const root1 = 2 - Math.sqrt(-p); // 左側の交点
+                const root2 = 2 + Math.sqrt(-p); // 右側の交点
+
+                // y > 0 の部分（左側）
+                drawSegment(xMin, root1, p, positiveColor);
+                // y < 0 の部分（交点間）
+                drawSegment(root1, root2, p, negativeColor);
+                // y > 0 の部分（右側）
+                drawSegment(root2, xMax, p, positiveColor);
+
+                // 交点を描画（黒丸または白丸）
+                drawIntersectionPoint(root1, 0, includesEquals);
+                drawIntersectionPoint(root2, 0, includesEquals);
+
+            } else if (p === 0) {
+                // --- x軸と接する場合（重解） ---
+                drawSegment(xMin, xMax, p, positiveColor);
+                // 接点を描画
+                drawIntersectionPoint(2, 0, includesEquals);
+            } else {
+                // --- x軸と交わらない場合 ---
+                drawSegment(xMin, xMax, p, positiveColor);
+            }
+        }
+
+        /**
+         * グラフの一部分（区間）を描画する
+         * @param {number} startX - 区間開始x座標
+         * @param {number} endX - 区間終了x座標
+         * @param {number} p - 二次関数の定数項
+         * @param {string} color - 線の色
+         */
+        function drawSegment(startX, endX, p, color) {
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            const step = 0.02; // 描画のx刻み幅
+            for (let x = startX; x <= endX; x += step) {
+                const y = Math.pow(x - 2, 2) + p; // y値計算
+                const canvasX = centerX + x * scale;
+                const canvasY = centerY - y * scale;
+                if (x === startX) {
+                    ctx.moveTo(canvasX, canvasY);
+                } else {
+                    ctx.lineTo(canvasX, canvasY);
+                }
+            }
+            ctx.stroke();
+        }
+
+        /**
+         * x軸との交点を描画する
+         * @param {number} x - 交点のx座標
+         * @param {number} y - 交点のy座標（常に0）
+         * @param {boolean} isSolid - true:黒丸, false:白丸
+         */
+        function drawIntersectionPoint(x, y, isSolid) {
+            const canvasX = centerX + x * scale;
+            const canvasY = centerY - y * scale;
+            ctx.beginPath();
+            ctx.arc(canvasX, canvasY, 6, 0, 2 * Math.PI);
+            if (isSolid) {
+                ctx.fillStyle = 'black'; // 黒丸（等号あり）
+                ctx.fill();
+            } else {
+                ctx.fillStyle = 'white'; // 白丸（等号なし）
+                ctx.fill();
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+
+        /**
+         * スライダーやチェックボックスの値が変更されたときのイベントハンドラ
+         * p値の表示も更新する
+         */
+        function handleInputChange() {
+            const p = parseFloat(pSlider.value);
+            pValueSpan.textContent = p.toFixed(1); // p値を小数1桁で表示
+            draw(); // 再描画
+        }
+
+        // --- イベントリスナーの設定 ---
+        pSlider.addEventListener('input', handleInputChange); // pスライダー変更時
+        includeEqualsCheckbox.addEventListener('change', handleInputChange); // チェックボックス変更時
+
+        // --- 初期描画 ---
+        handleInputChange();
+    </script>
+</body>
+</html>

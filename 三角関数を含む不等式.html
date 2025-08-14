@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三角関数を含む不等式シミュレーター</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: white;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .app-container {
+            width: 100%;
+            max-width: 1000px;
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 16px;
+        }
+        h1 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #483d8b; /* タイトル色（DarkSlateBlue） */
+            margin: 0 0 0.5rem 0;
+            text-align: center;
+        }
+        .main-content {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .canvas-wrapper {
+            flex: 1;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        canvas {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .controls {
+            background-color: #fdfdff;
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        .control-group {
+            margin-bottom: 1rem;
+        }
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+        .control-group label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        #inequality-expression {
+            text-align: center;
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #483d8b;
+            margin-bottom: 1.5rem;
+            font-family: 'Times New Roman', serif;
+        }
+        .function-selector {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        .function-selector label {
+            cursor: pointer;
+            font-size: 1.1rem;
+            margin-bottom: 0;
+        }
+        #solution-display {
+            margin-top: 1.5rem;
+            padding: 0.75rem;
+            background-color: #eef;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #334;
+            min-height: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <h1>三角関数を含む不等式シミュレーター</h1>
+        <div class="main-content">
+            <div class="canvas-wrapper">
+                <canvas id="unitCircleCanvas"></canvas>
+            </div>
+            <div class="canvas-wrapper">
+                <canvas id="graphCanvas"></canvas>
+            </div>
+        </div>
+        <div class="controls">
+            <div id="inequality-expression"></div>
+            <div class="control-group">
+                <div class="function-selector">
+                    <label><input type="radio" id="sin" name="func" value="sin" checked> sinθ</label>
+                    <label><input type="radio" id="cos" name="func" value="cos"> cosθ</label>
+                    <label><input type="radio" id="tan" name="func" value="tan"> tanθ</label>
+                </div>
+            </div>
+            <div class="control-group">
+                <label for="k-slider">不等式の値 k: <span id="k-value">0.5</span></label>
+                <div class="slider-container">
+                    <span id="k-min-label">-1</span>
+                    <input type="range" id="k-slider" min="-1" max="1" value="0.5" step="0.01">
+                    <span id="k-max-label">1</span>
+                </div>
+            </div>
+            <div class="control-group">
+                <label for="inequality-type">不等号</label>
+                <select id="inequality-type">
+                    <option value=">">&gt; (より大きい)</option>
+                    <option value=">=">&ge; (以上)</option>
+                    <option value="<">&lt; (より小さい)</option>
+                    <option value="<=">&le; (以下)</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="theta-slider">角度 θ: <span id="theta-value">0</span>°</label>
+                <div class="slider-container">
+                    <span>0°</span>
+                    <input type="range" id="theta-slider" min="0" max="360" value="0" step="1">
+                    <span>360°</span>
+                </div>
+            </div>
+            <div id="solution-display"></div>
+        </div>
+    </div>
+    <script>
+        // ==========================
+        // DOM要素の取得
+        // ==========================
+        const elements = {
+            unitCircleCanvas: document.getElementById('unitCircleCanvas'), // 単位円キャンバス
+            graphCanvas: document.getElementById('graphCanvas'),           // グラフキャンバス
+            kSlider: document.getElementById('k-slider'),                  // k値スライダー
+            kValue: document.getElementById('k-value'),                    // k値表示
+            kMinLabel: document.getElementById('k-min-label'),             // k最小値ラベル
+            kMaxLabel: document.getElementById('k-max-label'),             // k最大値ラベル
+            thetaSlider: document.getElementById('theta-slider'),          // θスライダー
+            thetaValue: document.getElementById('theta-value'),            // θ値表示
+            inequalitySelect: document.getElementById('inequality-type'),  // 不等号セレクトボックス
+            inequalityExpression: document.getElementById('inequality-expression'), // 不等式表示
+            solutionDisplay: document.getElementById('solution-display'),  // 解表示
+        };
+
+        // ==========================
+        // Canvasのコンテキスト取得
+        // ==========================
+        const ucCtx = elements.unitCircleCanvas.getContext('2d'); // 単位円用
+        const gCtx = elements.graphCanvas.getContext('2d');       // グラフ用
+
+        // ==========================
+        // Canvasサイズ設定
+        // ==========================
+        const size = 400;
+        elements.unitCircleCanvas.width = size;
+        elements.unitCircleCanvas.height = size;
+        elements.graphCanvas.width = size;
+        elements.graphCanvas.height = size;
+
+        // ==========================
+        // メイン描画関数
+        // ==========================
+        function draw() {
+            // 選択中の関数種別（sin, cos, tan）
+            const funcType = document.querySelector('input[name="func"]:checked').value;
+            // k値
+            const k = parseFloat(elements.kSlider.value);
+            // θ値（ラジアン）
+            const theta = parseFloat(elements.thetaSlider.value) * Math.PI / 180;
+            // 不等号
+            const inequality = elements.inequalitySelect.value;
+
+            // k値・θ値の表示更新
+            elements.kValue.textContent = k.toFixed(2);
+            elements.thetaValue.textContent = Math.round(theta * 180 / Math.PI);
+
+            // 不等式の記号を日本語表記に変換して表示
+            const inequalitySymbol = inequality.replace('>=', '≥').replace('<=', '≤');
+            elements.inequalityExpression.innerHTML = `${funcType}θ ${inequalitySymbol} ${k.toFixed(2)}`;
+
+            // tanθの場合はkスライダーの範囲を拡大
+            const kSlider = elements.kSlider;
+            if (funcType === 'tan') {
+                if (kSlider.min !== "-2") {
+                    kSlider.min = "-2";
+                    kSlider.max = "2";
+                    kSlider.step = "0.05";
+                    elements.kMinLabel.textContent = "-2";
+                    elements.kMaxLabel.textContent = "2";
+                }
+            } else {
+                if (kSlider.min !== "-1") {
+                    kSlider.min = "-1";
+                    kSlider.max = "1";
+                    kSlider.step = "0.01";
+                    elements.kMinLabel.textContent = "-1";
+                    elements.kMaxLabel.textContent = "1";
+                }
+            }
+
+            // キャンバスをクリアし、各描画処理を実行
+            clearCanvas();
+            drawUnitCircle(ucCtx, funcType, k, theta, inequality);
+            drawGraph(gCtx, funcType, k, theta, inequality);
+            displaySolution(funcType, k, inequality);
+        }
+
+        // ==========================
+        // キャンバスのクリア
+        // ==========================
+        function clearCanvas() {
+            ucCtx.clearRect(0, 0, size, size);
+            gCtx.clearRect(0, 0, size, size);
+        }
+
+        // ==========================
+        // 単位円の描画
+        // ==========================
+        function drawUnitCircle(ctx, func, k, theta, inequality) {
+            const center = size / 2;
+            const radius = size * 0.4;
+
+            // --- x軸・y軸の描画 ---
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, center); ctx.lineTo(size, center);   // x軸
+            ctx.moveTo(center, 0); ctx.lineTo(center, size);   // y軸
+            ctx.stroke();
+
+            // --- 軸ラベルの描画 ---
+            ctx.fillStyle = '#333';
+            ctx.font = '16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('x', size - 10, center - 15);
+            ctx.fillText('y', center + 15, 10);
+
+            // --- 単位円の描画 ---
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(center, center, radius, 0, 2 * Math.PI);
+            ctx.stroke();
+
+            // --- 原点ラベル"O"の描画 ---
+            ctx.save();
+            ctx.font = 'bold 18px sans-serif';
+            ctx.fillStyle = '#333';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'top';
+            // 軸と重ならないように少しずらす
+            ctx.fillText('O', center - 8, center + 4);
+            ctx.restore();
+
+            // --- 解となる弧の取得 ---
+            const solutionArcs = getSolutionArcs(func, k, inequality);
+
+            // --- 解となる弧の描画 ---
+            ctx.lineWidth = 5;
+            // 不等号によって色を変える
+            const highlightColor = (inequality === '>' || inequality === '>=') ? '#ff4500' : '#1e90ff';
+            ctx.strokeStyle = highlightColor;
+            solutionArcs.forEach(arc => {
+                ctx.beginPath();
+                ctx.arc(center, center, radius, -arc.end, -arc.start);
+                ctx.stroke();
+            });
+
+            // --- 境界線の描画 ---
+            ctx.strokeStyle = '#888';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 3]);
+            ctx.beginPath();
+            if (func === 'sin') {
+                // y=kの直線
+                const y = center - k * radius;
+                ctx.moveTo(0, y); ctx.lineTo(size, y);
+            } else if (func === 'cos') {
+                // x=kの直線
+                const x = center + k * radius;
+                ctx.moveTo(x, 0); ctx.lineTo(x, size);
+            } else {
+                // tanθ=kの直線（原点から傾きkの直線）
+                const tanLineX = center + radius;
+                const tanLineY = center - k * radius;
+                ctx.moveTo(center, center);
+                ctx.lineTo(tanLineX, tanLineY);
+                ctx.moveTo(tanLineX, 0);
+                ctx.lineTo(tanLineX, size);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // --- 境界点の描画（円周上）---
+            const boundaryAngles = getBoundaryAngles(func, k);
+            const isSolid = inequality.includes('='); // 境界を含む場合は塗りつぶし
+            boundaryAngles.forEach(angle => {
+                const xPos = center + radius * Math.cos(angle);
+                const yPos = center - radius * Math.sin(angle);
+                drawPoint(ctx, xPos, yPos, isSolid);
+            });
+
+            // --- 現在のθの線と点の描画 ---
+            const x = center + radius * Math.cos(theta);
+            const y = center - radius * Math.sin(theta);
+            ctx.strokeStyle = '#28a745'; // 緑色
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(center, center);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, 2 * Math.PI);
+            ctx.fillStyle = '#28a745'; // 緑色
+            ctx.fill();
+        }
+
+        // ==========================
+        // グラフの描画
+        // ==========================
+        function drawGraph(ctx, func, k, theta, inequality) {
+            const padding = 40; // グラフの余白
+            const yCenter = size / 2;
+            const xRange = 2 * Math.PI; // θの範囲（0～2π）
+            const xScale = (size - 2 * padding) / xRange; // θ→x座標変換
+            const yScale = (size - 2 * padding) / (func === 'tan' ? 4 : 2); // y→y座標変換
+
+            // --- 軸の描画 ---
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padding, yCenter); ctx.lineTo(size - padding, yCenter); // x軸
+            ctx.moveTo(padding, padding); ctx.lineTo(padding, size - padding); // y軸
+            ctx.stroke();
+
+            // --- 軸ラベルの描画 ---
+            ctx.fillStyle = '#333';
+            ctx.font = '16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('θ', size - 15, yCenter + 15);
+            ctx.fillText('y', padding - 15, padding - 5);
+
+            // --- 対応する三角関数を取得 ---
+            let mathFunc;
+            if (func === 'sin') mathFunc = Math.sin;
+            if (func === 'cos') mathFunc = Math.cos;
+            if (func === 'tan') mathFunc = Math.tan;
+
+            // --- 解となる区間のハイライト描画 ---
+            const highlightColor = (inequality === '>' || inequality === '>=') ? 'rgba(255, 69, 0, 0.2)' : 'rgba(30, 144, 255, 0.2)';
+            ctx.fillStyle = highlightColor;
+            const solutionArcs = getSolutionArcs(func, k, inequality);
+            solutionArcs.forEach(arc => {
+                ctx.fillRect(
+                    padding + arc.start * xScale,
+                    padding,
+                    (arc.end - arc.start) * xScale,
+                    size - 2 * padding
+                );
+            });
+
+            // --- 三角関数のグラフ描画 ---
+            ctx.beginPath();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < size - 2 * padding; i++) {
+                const angle = i / xScale;
+                let val = mathFunc(angle);
+                // tanθの定義域外（発散）をスキップ
+                if (func === 'tan' && Math.abs(Math.cos(angle)) < 0.01) {
+                    ctx.stroke();
+                    ctx.beginPath();
+                    continue;
+                }
+                const xPos = padding + i;
+                const yPos = yCenter - val * yScale;
+                if (i === 0) ctx.moveTo(xPos, yPos);
+                else ctx.lineTo(xPos, yPos);
+            }
+            ctx.stroke();
+
+            // --- kの水平線の描画 ---
+            ctx.strokeStyle = '#888';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 3]);
+            ctx.beginPath();
+            const yLine = yCenter - k * yScale;
+            ctx.moveTo(padding, yLine);
+            ctx.lineTo(size - padding, yLine);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // --- 境界点の描画（グラフ上）---
+            const boundaryAngles = getBoundaryAngles(func, k);
+            boundaryAngles.forEach(angle => {
+                const xPos = padding + angle * xScale;
+                drawPoint(ctx, xPos, yLine, inequality.includes('='));
+            });
+
+            // --- 現在のθの点の描画 ---
+            const currentX = padding + theta * xScale;
+            const currentY = yCenter - mathFunc(theta) * yScale;
+            ctx.fillStyle = '#28a745'; // 緑色
+            ctx.beginPath();
+            ctx.arc(currentX, currentY, 5, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        // ==========================
+        // 補助・ロジック関数
+        // ==========================
+
+        // --- 境界角度（弧度法）の取得 ---
+        function getBoundaryAngles(func, k) {
+            let angles = [];
+            if (func === 'sin') {
+                // sinθ=k の解
+                if (k >= -1 && k <= 1) {
+                    const angle = Math.asin(k);
+                    angles.push(angle, Math.PI - angle);
+                }
+            } else if (func === 'cos') {
+                // cosθ=k の解
+                if (k >= -1 && k <= 1) {
+                    const angle = Math.acos(k);
+                    angles.push(angle, 2 * Math.PI - angle);
+                }
+            } else { // tan
+                // tanθ=k の解
+                const angle = Math.atan(k);
+                angles.push(angle, angle + Math.PI);
+            }
+            // 0～2πの範囲に正規化し、昇順ソート
+            return angles.map(a => (a < 0) ? a + 2 * Math.PI : a).sort((a, b) => a - b);
+        }
+
+        // --- 解となる弧（区間）の取得 ---
+        function getSolutionArcs(func, k, inequality) {
+            // 指定したθで不等式が成り立つか判定する関数
+            const testFunc = (angle) => {
+                let val;
+                if (func === 'sin') val = Math.sin(angle);
+                if (func === 'cos') val = Math.cos(angle);
+                if (func === 'tan') val = Math.tan(angle);
+
+                switch (inequality) {
+                    case '>': return val > k;
+                    case '>=': return val >= k;
+                    case '<': return val < k;
+                    case '<=': return val <= k;
+                }
+            };
+
+            let arcs = [];
+            let inSolution = false;
+            let arcStart = 0;
+
+            const step = 0.01; // 角度の刻み（ラジアン）
+            for (let angle = 0; angle < 2 * Math.PI; angle += step) {
+                const currentInSolution = testFunc(angle);
+                // tanθの定義域外（cosθ=0付近）は区切る
+                if (func === 'tan' && Math.abs(Math.cos(angle)) < 0.02) {
+                    if (inSolution) arcs.push({ start: arcStart, end: angle });
+                    inSolution = false;
+                    continue;
+                }
+
+                if (currentInSolution && !inSolution) {
+                    inSolution = true;
+                    arcStart = angle;
+                } else if (!currentInSolution && inSolution) {
+                    inSolution = false;
+                    arcs.push({ start: arcStart, end: angle });
+                }
+            }
+            // 最後まで解が続く場合
+            if (inSolution) {
+                arcs.push({ start: arcStart, end: 2 * Math.PI });
+            }
+
+            return arcs;
+        }
+
+        // --- 解のテキスト表示 ---
+        function displaySolution(func, k, inequality) {
+            const arcs = getSolutionArcs(func, k, inequality);
+
+            // 解が存在しない場合
+            if (
+                arcs.length === 0 &&
+                !(func !== 'tan' && Math.abs(k) > 1 && (inequality === '<=' || inequality === '>='))
+            ) {
+                elements.solutionDisplay.textContent = '解なし';
+                return;
+            }
+
+            // 角度をπ表記で整形
+            const formatAngle = (angle) => {
+                const pi = Math.PI;
+                // 代表的な分数πの近似値
+                const fractions = {
+                    [0]: '0',
+                    [pi / 6]: 'π/6',
+                    [pi / 4]: 'π/4',
+                    [pi / 3]: 'π/3',
+                    [pi / 2]: 'π/2',
+                    [2 * pi / 3]: '2π/3',
+                    [3 * pi / 4]: '3π/4',
+                    [5 * pi / 6]: '5π/6',
+                    [pi]: 'π',
+                    [7 * pi / 6]: '7π/6',
+                    [5 * pi / 4]: '5π/4',
+                    [4 * pi / 3]: '4π/3',
+                    [3 * pi / 2]: '3π/2',
+                    [5 * pi / 3]: '5π/3',
+                    [7 * pi / 4]: '7π/4',
+                    [11 * pi / 6]: '11π/6',
+                    [2 * pi]: '2π'
+                };
+                for (const val in fractions) {
+                    if (Math.abs(angle - val) < 0.015) return fractions[val];
+                }
+                // 近似値でπ表記
+                return `${(angle / pi).toFixed(2)}π`;
+            };
+
+            // 区間ごとにテキスト生成
+            const solText = arcs.map(arc => {
+                let start = arc.start;
+                let end = arc.end;
+
+                // 全域が解の場合
+                if (Math.abs(start - end) > 2 * Math.PI - 0.1) return `0 ≤ θ < 2π`;
+
+                // 不等号に応じて記号を選択
+                const startSymbol = inequality.includes('=') ? '≤' : '<';
+                const endSymbol = inequality.includes('=') ? '≤' : '<';
+
+                return `${formatAngle(start)} ${startSymbol} θ ${endSymbol} ${formatAngle(end)}`;
+            }).join(', ');
+
+            elements.solutionDisplay.textContent = solText;
+        }
+
+        // --- 境界点の描画（塗りつぶし or 白抜き）---
+        function drawPoint(ctx, x, y, isSolid) {
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, 2 * Math.PI);
+            if (isSolid) {
+                ctx.fillStyle = 'black';
+                ctx.fill();
+            } else {
+                ctx.fillStyle = 'white';
+                ctx.fill();
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+
+        // ==========================
+        // イベントリスナー登録
+        // ==========================
+        // 入力要素の変更時に再描画
+        const inputs = document.querySelectorAll('input[name="func"], #k-slider, #inequality-type, #theta-slider');
+        inputs.forEach(el => el.addEventListener('input', draw));
+
+        // ==========================
+        // 初期描画
+        // ==========================
+        draw();
+
+    </script>
+</body>
+</html>
